@@ -4,6 +4,7 @@ import envs
 import torch
 import pickle
 import random
+import argparse
 import numpy as np
 from tqdm.auto import tqdm, trange
 
@@ -55,16 +56,13 @@ def record_episode(env, agent, data=None):
     return data
 
 
-def main():
-    num_episodes = 10
-    save_path = "data"
+def main(config):
+    env = gym.make(config.env)
+    agent = SAC.load(config.model_path, device=config.device)
 
-    env = gym.make("HalfCheetah-v3")
-    agent = SAC.load("pretrained/sac_forward", device="cpu")
-
-    set_seed(env, seed=42)
+    set_seed(env, seed=config.seed)
     data = None
-    for _ in trange(num_episodes):
+    for _ in trange(config.num_episodes):
         data = record_episode(env, agent, data=data)
 
     to_numpy(data)
@@ -77,10 +75,18 @@ def main():
         else:
             print(k, ":", len(v))
 
-    os.makedirs(save_path, exist_ok=True)
-    with open(os.path.join(save_path, env.spec.id + ".pkl"), "wb") as f:
+    os.makedirs(config.save_path, exist_ok=True)
+    with open(os.path.join(config.save_path, env.spec.id + ".pkl"), "wb") as f:
         pickle.dump(data, f)
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--seed", type=int, default=42, help="Global seed")
+    parser.add_argument("--device", type=str, default="cpu", help="Device to use: cpu or gpu")
+    parser.add_argument("--env", type=str, choices=("HalfCheetah-v3", "BackflipCheetah-v0"), help="Environment on which to build a dataset of demo's")
+    parser.add_argument("--model_path", type=str, help="Path to the pretrained model checkpoint, should be from stable-baselines3")
+    parser.add_argument("--num_episodes", type=int, default=100, help="Number of episodes to collect dataset")
+    parser.add_argument("--save_path", type=str, help="Full path where to save dataset)")
+
+    main(parser.parse_args())
