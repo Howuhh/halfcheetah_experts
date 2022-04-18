@@ -2,12 +2,11 @@ import os
 import h5py
 import json
 import gym
+import envs
 import pickle
 import argparse
 import numpy as np
 
-# import d4rl
-# import robomimic
 from robomimic.envs.env_gym import EnvGym
 from robomimic.utils.log_utils import custom_tqdm
 
@@ -17,15 +16,17 @@ from robomimic.utils.log_utils import custom_tqdm
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--env", type=str, help="Env from which data was collected")
+    parser.add_argument("--seed", type=int, default=42, help="fix seed for validation demos sampling")
     parser.add_argument("--data_path", type=str, help="path to the data for conversion")
     parser.add_argument("--save_path", type=str, help="path where to save converted data")
+    parser.add_argument("--num_valid", type=int, help="number of demos for validation")
 
     args = parser.parse_args()
 
     # load input data
     with open(args.data_path, "rb") as data_f:
         data = pickle.load(data_f)
-    data_name = args.data_path.split("/")[-1]
+    data_name = args.data_path.split("/")[-1].split('.')[0]
 
     # create output file
     os.makedirs(args.save_path, exist_ok=True)
@@ -33,6 +34,7 @@ if __name__ == "__main__":
 
     f_sars = h5py.File(output_path, "w")
     f_sars_grp = f_sars.create_group("data")
+    f_mask_grp = f_sars.create_group("mask")  # for train/val split
 
     # code to split D4RL data into trajectories
     # (modified from https://github.com/aviralkumar2907/d4rl_evaluations/blob/bear_intergrate/bear/examples/bear_hdf5_d4rl.py#L18)
@@ -92,6 +94,17 @@ if __name__ == "__main__":
 
     print(f"\nExcluding {len(traj['actions'])} samples at end of file due to no trajectory truncation.")
     print(f"Wrote {num_traj} trajectories to new converted hdf5 at {output_path}\n")
+
+    # create train/val split masks
+    np.random.seed(args.seed)
+
+    valid_ids = np.random.choice(num_traj, size=args.num_valid, replace=False)
+    train_ids = [i for i in range(num_traj) if i not in valid_ids]
+
+    print("Validation ids:", valid_ids)
+    assert not (set(valid_ids) & set(train_ids))
+    f_mask_grp.create_dataset("valid", data=np.array([f"demo_{i}" for i in valid_ids], dtype="S"))
+    f_mask_grp.create_dataset("train", data=np.array([f"demo_{i}" for i in train_ids], dtype="S"))
 
     # metadata
     f_sars_grp.attrs["total"] = total_samples

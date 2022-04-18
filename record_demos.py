@@ -33,7 +33,7 @@ def record_episode(env, agent, data=None):
 
     done, obs, total_reward = False, env.reset(), 0.0
     while not done:
-        action, _states = agent.predict(obs, deterministic=True)
+        action, _states = agent.predict(obs, deterministic=False)
         new_obs, reward, done, info = env.step(action)
 
         timeout = "TimeLimit.truncated" in info and info["TimeLimit.truncated"]
